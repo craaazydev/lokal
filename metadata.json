@@ -1,0 +1,6 @@
+{
+  "name": "AuraGold OTC Desk",
+  "description": "Secure, gold & black themed cryptocurrency OTC exchange. Connects via Telegram authentication, trades BTC, ETH, and SOL quickly, manages transaction files, and reviews KYC applications inside an interactive admin control room.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

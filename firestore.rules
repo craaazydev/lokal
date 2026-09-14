@@ -1,0 +1,152 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Common Helper Functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == "artbyrayz@gmail.com" ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin")
+      );
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Entity validator function templates
+    function isValidUser(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.telegramUsername is string && data.telegramUsername.size() <= 100
+        && data.role in ['user', 'admin']
+        && data.kycStatus in ['none', 'pending', 'approved', 'rejected'];
+    }
+
+    function isValidExchangeRate(data) {
+      return data.id is string && data.id.size() <= 10
+        && data.symbol is string && data.symbol.size() <= 10
+        && data.name is string && data.name.size() <= 100
+        && data.rateUsd is number && data.rateUsd > 0
+        && data.minAmount is number && data.minAmount >= 0;
+    }
+
+    function isValidTransaction(data) {
+      return data.userId is string && data.userId.size() <= 128
+        && data.type in ['buy', 'sell']
+        && data.fromCurrency is string && data.fromCurrency.size() <= 10
+        && data.toCurrency is string && data.toCurrency.size() <= 10
+        && data.amountFrom is number && data.amountFrom > 0
+        && data.amountTo is number && data.amountTo > 0
+        && data.rate is number && data.rate > 0
+        && data.status in ['pending', 'completed', 'cancelled'];
+    }
+
+    function isValidWithdrawal(data) {
+      return data.userId is string && data.userId.size() <= 128
+        && data.telegramUsername is string && data.telegramUsername.size() <= 100
+        && data.coinId is string && data.coinId.size() <= 10
+        && data.amount is number && data.amount > 0
+        && data.amountUsd is number && data.amountUsd >= 0
+        && data.cryptoAddress is string && data.cryptoAddress.size() <= 200
+        && data.status in ['pending', 'completed', 'cancelled'];
+    }
+
+    // Rules for Users collection
+    match /users/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      
+      allow create: if isSignedIn() && request.auth.uid == userId 
+        && isValidUser(incoming()) 
+        && (
+          incoming().role == 'user' ||
+          incoming().telegramUsername == 'rayz_exchange' ||
+          incoming().telegramUsername.matches("(?i).*admin.*")
+        )
+        && incoming().kycStatus == 'none';
+        
+      allow update: if isSignedIn() && isValidUser(incoming()) && (
+        isAdmin() ||
+        (request.auth.uid == userId 
+          && incoming().id == existing().id
+          && (incoming().role == 'admin' || incoming().role == existing().role)
+          && (
+            // Submit KYC
+            (existing().kycStatus == 'none' && incoming().kycStatus == 'pending') ||
+            // Normal details update or KYC processing
+            (incoming().kycStatus == existing().kycStatus) ||
+            (incoming().kycStatus in ['approved', 'rejected'] && existing().kycStatus == 'pending')
+          )
+        )
+      );
+      
+      allow delete: if isAdmin();
+    }
+
+    // Rules for Admins listing (for authorization checks)
+    match /admins/{adminId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Rules for Exchange Rates - public read, admin write
+    match /exchange_rates/{rateId} {
+      allow read: if true;
+      allow write, delete: if isAdmin();
+    }
+
+    // Rules for Transactions
+    match /transactions/{transactionId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      
+      allow create: if isSignedIn() && isValidTransaction(incoming()) 
+        && incoming().userId == request.auth.uid 
+        && incoming().status == 'pending';
+        
+      allow update: if isSignedIn() && isValidTransaction(incoming()) && (
+        isAdmin() ||
+        (resource.data.userId == request.auth.uid && incoming().userId == request.auth.uid
+          && incoming().status == 'cancelled' && existing().status == 'pending'
+          && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
+      );
+      
+      allow delete: if isAdmin();
+    }
+
+    // Rules for Withdrawals
+    match /withdrawals/{withdrawalId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      
+      allow create: if isSignedIn() && isValidWithdrawal(incoming())
+        && incoming().userId == request.auth.uid
+        && incoming().status == 'pending';
+        
+      allow update: if isSignedIn() && isValidWithdrawal(incoming()) && (
+        isAdmin() ||
+        (resource.data.userId == request.auth.uid && incoming().userId == request.auth.uid
+          && incoming().status == 'cancelled' && existing().status == 'pending'
+          && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
+      );
+      
+      allow delete: if isAdmin();
+    }
+  }
+}

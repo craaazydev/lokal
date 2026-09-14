@@ -1,0 +1,158 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User profile with Telegram handle, KYC status, and administrative role.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of the user (Telegram ID or custom UID)"
+        },
+        "telegramUsername": {
+          "type": "string",
+          "description": "Telegram @username"
+        },
+        "phoneNumber": {
+          "type": "string",
+          "description": "User's telegram-verified phone number"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "The public display name or first/last name"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["user", "admin"],
+          "description": "System role (user or admin)"
+        },
+        "kycStatus": {
+          "type": "string",
+          "enum": ["none", "pending", "approved", "rejected"],
+          "description": "Current KYC status of the user"
+        },
+        "kycData": {
+          "type": "object",
+          "description": "Extensible object storing KYC form data such as full name, document ID, and details"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "telegramUsername", "role", "kycStatus"]
+    },
+    "ExchangeRate": {
+      "title": "Exchange Rate",
+      "description": "Supported crypto/fiat currency list with rates and transaction commissions.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "E.g., BTC, ETH, USDT, SOL"
+        },
+        "symbol": {
+          "type": "string",
+          "description": "Currency symbol abbreviation"
+        },
+        "name": {
+          "type": "string",
+          "description": "Full name of currency"
+        },
+        "rateUsd": {
+          "type": "number",
+          "description": "USD value of 1 unit"
+        },
+        "buyCommissionPercent": {
+          "type": "number",
+          "description": "Percentage fee added to buys"
+        },
+        "sellCommissionPercent": {
+          "type": "number",
+          "description": "Percentage fee subtracted from sells"
+        },
+        "minAmount": {
+          "type": "number",
+          "description": "Minimum transaction amount allowed"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "symbol", "name", "rateUsd", "buyCommissionPercent", "sellCommissionPercent", "minAmount"]
+    },
+    "Transaction": {
+      "title": "Exchange Transaction",
+      "description": "User request to swap, sell, or buy crypto assets.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "userId": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["buy", "sell"]
+        },
+        "fromCurrency": {
+          "type": "string"
+        },
+        "toCurrency": {
+          "type": "string"
+        },
+        "amountFrom": {
+          "type": "number"
+        },
+        "amountTo": {
+          "type": "number"
+        },
+        "rate": {
+          "type": "number"
+        },
+        "cryptoAddress": {
+          "type": "string"
+        },
+        "paymentDetails": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "completed", "cancelled"]
+        },
+        "telegramUsername": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "userId", "type", "fromCurrency", "toCurrency", "amountFrom", "amountTo", "rate", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "Collection of user-specific profile records"
+    },
+    "exchange_rates/{rateId}": {
+      "schema": "ExchangeRate",
+      "description": "Exchange rates for supported currencies, modified by admins"
+    },
+    "transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "Exchange transactions created by users and approved by admins"
+    }
+  }
+}
