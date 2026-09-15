@@ -24,7 +24,9 @@ import {
   Link2, 
   Globe,
   Copy,
-  Check
+  Check,
+  Landmark,
+  Info
 } from 'lucide-react';
 
 interface UserProfilePageProps {
@@ -77,6 +79,7 @@ export default function UserProfilePage({
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
   const [copiedCompanyId, setCopiedCompanyId] = useState(false);
+  const [copiedBmlAccount, setCopiedBmlAccount] = useState(false);
 
   const handleCopyCompanyBinanceId = () => {
     const textToCopy = '179047031';
@@ -85,6 +88,15 @@ export default function UserProfilePage({
     }
     setCopiedCompanyId(true);
     setTimeout(() => setCopiedCompanyId(false), 2000);
+  };
+
+  const handleCopyBmlAccount = () => {
+    const textToCopy = '7730000179047';
+    if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(textToCopy).catch(() => {});
+    }
+    setCopiedBmlAccount(true);
+    setTimeout(() => setCopiedBmlAccount(false), 2000);
   };
   
   // Simulated Diagnostic Console
@@ -247,63 +259,145 @@ export default function UserProfilePage({
         </div>
       </div>
 
-      {/* Small Static Card: Official Company Binance ID */}
-      <div 
-        id="company-binance-id-card" 
-        className="mb-8 bg-neutral-900/80 border border-amber-500/30 hover:border-amber-500/50 rounded-2xl p-4 sm:p-5 shadow-xl backdrop-blur-sm relative overflow-hidden transition-all"
-      >
-        <div className="absolute top-0 right-0 w-36 h-36 bg-amber-500/5 rounded-full blur-2xl pointer-events-none" />
-        
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
-          <div className="flex items-start sm:items-center gap-3.5">
-            <div className="h-10 w-10 sm:h-11 sm:w-11 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-center text-amber-400 shrink-0">
-              <Coins className="h-5 w-5" />
+      {/* Official Corporate Deposit Channels: Binance Pay & BML Bank */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 mb-8">
+        {/* Card 1: Official Company Binance ID */}
+        <div 
+          id="company-binance-id-card" 
+          className="bg-neutral-900/80 border border-amber-500/30 hover:border-amber-500/50 rounded-2xl p-4 sm:p-5 shadow-xl backdrop-blur-sm relative overflow-hidden transition-all flex flex-col justify-between"
+        >
+          <div className="absolute top-0 right-0 w-36 h-36 bg-amber-500/5 rounded-full blur-2xl pointer-events-none" />
+          
+          <div className="relative z-10">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-start sm:items-center gap-3.5">
+                <div className="h-10 w-10 sm:h-11 sm:w-11 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-center text-amber-400 shrink-0">
+                  <Coins className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400 bg-amber-500/10 border border-amber-500/25 px-2 py-0.5 rounded-md">
+                      Company Binance ID
+                    </span>
+                    <span className="text-xs text-neutral-400">Direct OTC Deposit & Pay Rail</span>
+                  </div>
+                  
+                  <div className="flex items-center gap-3 sm:gap-4 mt-2 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-neutral-400">Binance ID:</span>
+                      <span className="text-base sm:text-lg font-bold text-white font-mono tracking-wide bg-neutral-950/80 px-2.5 py-1 rounded-lg border border-neutral-800">
+                        179047031
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-neutral-400">Nickname:</span>
+                      <span className="text-xs sm:text-sm font-semibold text-amber-300 font-mono bg-amber-500/10 border border-amber-500/25 px-2.5 py-1 rounded-lg">
+                        redjin
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+                <button
+                  type="button"
+                  id="copy-company-binance-id-btn"
+                  onClick={handleCopyCompanyBinanceId}
+                  className="inline-flex items-center gap-2 bg-amber-400/15 hover:bg-amber-400/25 text-amber-300 border border-amber-400/35 px-4 py-2.5 rounded-xl text-xs font-semibold tracking-wider transition-all cursor-pointer shadow-sm hover:scale-[1.02]"
+                  title="Copy Binance ID 179047031"
+                >
+                  {copiedCompanyId ? (
+                    <>
+                      <Check className="h-4 w-4 text-emerald-400" />
+                      <span className="text-emerald-400">Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-4 w-4 text-amber-400" />
+                      <span>Copy ID</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400 bg-amber-500/10 border border-amber-500/25 px-2 py-0.5 rounded-md">
-                  Company Binance ID
-                </span>
-                <span className="text-xs text-neutral-400">Direct OTC Deposit & Pay Rail</span>
-              </div>
-              
-              <div className="flex items-center gap-3 sm:gap-4 mt-2 flex-wrap">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-neutral-400">Binance ID:</span>
-                  <span className="text-base sm:text-lg font-bold text-white font-mono tracking-wide bg-neutral-950/80 px-2.5 py-1 rounded-lg border border-neutral-800">
-                    179047031
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-neutral-400">Nickname:</span>
-                  <span className="text-xs sm:text-sm font-semibold text-amber-300 font-mono bg-amber-500/10 border border-amber-500/25 px-2.5 py-1 rounded-lg">
-                    redjin
-                  </span>
-                </div>
-              </div>
+
+            <div className="mt-4 pt-3.5 border-t border-neutral-800/80 flex items-start gap-2.5">
+              <Info className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+              <p className="text-[11px] text-neutral-300 leading-relaxed">
+                <strong className="text-amber-300">Deposit Instruction:</strong> For crypto deposits or internal Binance Pay transfers, send directly to Binance ID <span className="font-mono text-white font-semibold">179047031</span> (<span className="text-amber-300 font-mono">redjin</span>) with zero network fees.
+              </p>
             </div>
           </div>
+        </div>
 
-          <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
-            <button
-              type="button"
-              id="copy-company-binance-id-btn"
-              onClick={handleCopyCompanyBinanceId}
-              className="inline-flex items-center gap-2 bg-amber-400/15 hover:bg-amber-400/25 text-amber-300 border border-amber-400/35 px-4 py-2.5 rounded-xl text-xs font-semibold tracking-wider transition-all cursor-pointer shadow-sm hover:scale-[1.02]"
-              title="Copy Binance ID 179047031"
-            >
-              {copiedCompanyId ? (
-                <>
-                  <Check className="h-4 w-4 text-emerald-400" />
-                  <span className="text-emerald-400">Copied!</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="h-4 w-4 text-amber-400" />
-                  <span>Copy ID</span>
-                </>
-              )}
-            </button>
+        {/* Card 2: Official Company BML Bank Account */}
+        <div 
+          id="company-bml-account-card" 
+          className="bg-neutral-900/80 border border-rose-500/30 hover:border-rose-500/50 rounded-2xl p-4 sm:p-5 shadow-xl backdrop-blur-sm relative overflow-hidden transition-all flex flex-col justify-between"
+        >
+          <div className="absolute top-0 right-0 w-36 h-36 bg-rose-500/5 rounded-full blur-2xl pointer-events-none" />
+          
+          <div className="relative z-10">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-start sm:items-center gap-3.5">
+                <div className="h-10 w-10 sm:h-11 sm:w-11 rounded-xl bg-rose-500/10 border border-rose-500/25 flex items-center justify-center text-rose-400 shrink-0">
+                  <Landmark className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-rose-400 bg-rose-500/10 border border-rose-500/25 px-2 py-0.5 rounded-md">
+                      Company BML Account
+                    </span>
+                    <span className="text-xs text-neutral-400">Direct MVR Deposit Rail</span>
+                  </div>
+                  
+                  <div className="flex items-center gap-3 sm:gap-4 mt-2 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-neutral-400">BML Acct (MVR):</span>
+                      <span className="text-base sm:text-lg font-bold text-white font-mono tracking-wide bg-neutral-950/80 px-2.5 py-1 rounded-lg border border-neutral-800">
+                        7730000179047
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-neutral-400">Name:</span>
+                      <span className="text-xs sm:text-sm font-semibold text-rose-300 font-mono bg-rose-500/10 border border-rose-500/25 px-2.5 py-1 rounded-lg">
+                        redjin / LokalMV
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+                <button
+                  type="button"
+                  id="copy-company-bml-account-btn"
+                  onClick={handleCopyBmlAccount}
+                  className="inline-flex items-center gap-2 bg-rose-400/15 hover:bg-rose-400/25 text-rose-300 border border-rose-400/35 px-4 py-2.5 rounded-xl text-xs font-semibold tracking-wider transition-all cursor-pointer shadow-sm hover:scale-[1.02]"
+                  title="Copy BML Account 7730000179047"
+                >
+                  {copiedBmlAccount ? (
+                    <>
+                      <Check className="h-4 w-4 text-emerald-400" />
+                      <span className="text-emerald-400">Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-4 w-4 text-rose-400" />
+                      <span>Copy Acct</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 pt-3.5 border-t border-neutral-800/80 flex items-start gap-2.5">
+              <Info className="h-4 w-4 text-rose-400 shrink-0 mt-0.5" />
+              <p className="text-[11px] text-neutral-300 leading-relaxed">
+                <strong className="text-rose-300">Deposit Instruction:</strong> Please deposit your Maldivian Rufiyaa (MVR) settlement to this Bank of Maldives account. Enter your username or trade order ID in the transfer remarks/memo, and save your receipt for instant escrow clearance.
+              </p>
+            </div>
           </div>
         </div>
       </div>
