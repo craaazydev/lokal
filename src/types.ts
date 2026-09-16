@@ -142,3 +142,22 @@ export interface TelegramAuthData {
   phone: string;
   displayName: string;
 }
+
+export interface CompanyBmlConfig {
+  accountNumber: string;
+  accountName: string;
+  currency: string;
+  bankName: string;
+  depositInstruction: string;
+  isActive: boolean;
+  updatedAt?: string;
+}
+
+export const DEFAULT_COMPANY_BML_CONFIG: CompanyBmlConfig = {
+  accountNumber: '7730000179047',
+  accountName: 'redjin / LokalMV',
+  currency: 'MVR',
+  bankName: 'Bank of Maldives',
+  depositInstruction: 'Please deposit your Maldivian Rufiyaa (MVR) settlement to this Bank of Maldives account. Enter your username or trade order ID in the transfer remarks/memo, and save your receipt for instant escrow clearance.',
+  isActive: true,
+};

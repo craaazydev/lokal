@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
-import { UserProfile, ExchangeRate, getBuyRate, getSellRate, formatNum } from '../types';
+import { UserProfile, ExchangeRate, CompanyBmlConfig, DEFAULT_COMPANY_BML_CONFIG, getBuyRate, getSellRate, formatNum } from '../types';
 import { 
   User, 
   Phone, 
@@ -33,6 +33,7 @@ interface UserProfilePageProps {
   userProfile: UserProfile | null;
   onProfileUpdate: (updated: UserProfile) => void;
   rates: ExchangeRate[];
+  companyBmlConfig?: CompanyBmlConfig;
   isBinanceFeedLive: boolean;
 }
 
@@ -40,6 +41,7 @@ export default function UserProfilePage({
   userProfile, 
   onProfileUpdate, 
   rates, 
+  companyBmlConfig,
   isBinanceFeedLive 
 }: UserProfilePageProps) {
   
@@ -81,6 +83,8 @@ export default function UserProfilePage({
   const [copiedCompanyId, setCopiedCompanyId] = useState(false);
   const [copiedBmlAccount, setCopiedBmlAccount] = useState(false);
 
+  const currentBml = companyBmlConfig || DEFAULT_COMPANY_BML_CONFIG;
+
   const handleCopyCompanyBinanceId = () => {
     const textToCopy = '179047031';
     if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
@@ -91,7 +95,7 @@ export default function UserProfilePage({
   };
 
   const handleCopyBmlAccount = () => {
-    const textToCopy = '7730000179047';
+    const textToCopy = currentBml.accountNumber || '7730000179047';
     if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(textToCopy).catch(() => {});
     }
@@ -347,22 +351,31 @@ export default function UserProfilePage({
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-rose-400 bg-rose-500/10 border border-rose-500/25 px-2 py-0.5 rounded-md">
-                      Company BML Account
+                      Company {currentBml.bankName || 'BML'} Account
                     </span>
-                    <span className="text-xs text-neutral-400">Direct MVR Deposit Rail</span>
+                    <span className="text-xs text-neutral-400">Direct {currentBml.currency || 'MVR'} Deposit Rail</span>
+                    {currentBml.isActive === false ? (
+                      <span className="text-[10px] font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/25 px-2 py-0.5 rounded-md">
+                        Maintenance Mode
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 px-2 py-0.5 rounded-md">
+                        Active Deposit Rail
+                      </span>
+                    )}
                   </div>
                   
                   <div className="flex items-center gap-3 sm:gap-4 mt-2 flex-wrap">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-neutral-400">BML Acct (MVR):</span>
+                      <span className="text-xs text-neutral-400">{currentBml.bankName || 'BML'} ({currentBml.currency || 'MVR'}):</span>
                       <span className="text-base sm:text-lg font-bold text-white font-mono tracking-wide bg-neutral-950/80 px-2.5 py-1 rounded-lg border border-neutral-800">
-                        7730000179047
+                        {currentBml.accountNumber}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-neutral-400">Name:</span>
                       <span className="text-xs sm:text-sm font-semibold text-rose-300 font-mono bg-rose-500/10 border border-rose-500/25 px-2.5 py-1 rounded-lg">
-                        redjin / LokalMV
+                        {currentBml.accountName}
                       </span>
                     </div>
                   </div>
@@ -375,7 +388,7 @@ export default function UserProfilePage({
                   id="copy-company-bml-account-btn"
                   onClick={handleCopyBmlAccount}
                   className="inline-flex items-center gap-2 bg-rose-400/15 hover:bg-rose-400/25 text-rose-300 border border-rose-400/35 px-4 py-2.5 rounded-xl text-xs font-semibold tracking-wider transition-all cursor-pointer shadow-sm hover:scale-[1.02]"
-                  title="Copy BML Account 7730000179047"
+                  title={`Copy ${currentBml.bankName || 'BML'} Account ${currentBml.accountNumber}`}
                 >
                   {copiedBmlAccount ? (
                     <>
@@ -395,7 +408,7 @@ export default function UserProfilePage({
             <div className="mt-4 pt-3.5 border-t border-neutral-800/80 flex items-start gap-2.5">
               <Info className="h-4 w-4 text-rose-400 shrink-0 mt-0.5" />
               <p className="text-[11px] text-neutral-300 leading-relaxed">
-                <strong className="text-rose-300">Deposit Instruction:</strong> Please deposit your Maldivian Rufiyaa (MVR) settlement to this Bank of Maldives account. Enter your username or trade order ID in the transfer remarks/memo, and save your receipt for instant escrow clearance.
+                <strong className="text-rose-300">Deposit Instruction:</strong> {currentBml.depositInstruction || DEFAULT_COMPANY_BML_CONFIG.depositInstruction}
               </p>
             </div>
           </div>

@@ -6,9 +6,9 @@
 import React, { useState, useEffect } from 'react';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc, collection, getDocs, writeBatch, updateDoc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, writeBatch, updateDoc, onSnapshot, setDoc } from 'firebase/firestore';
 import { DEFAULT_RATES } from './data';
-import { ExchangeRate, UserProfile } from './types';
+import { ExchangeRate, UserProfile, CompanyBmlConfig, DEFAULT_COMPANY_BML_CONFIG } from './types';
 
 // Component Imports
 import Navbar from './components/Navbar';
@@ -35,6 +35,7 @@ export default function App() {
   const [selectedCoinId, setSelectedCoinId] = useState('USDT');
   const [selectedActionType, setSelectedActionType] = useState<'buy' | 'sell'>('buy');
   const [refetchKey, setRefetchKey] = useState(0); // increment to trigger transactions history re-render
+  const [companyBmlConfig, setCompanyBmlConfig] = useState<CompanyBmlConfig>(DEFAULT_COMPANY_BML_CONFIG);
 
   // 1. Fetch user profile when user logs in/out from Firebase Auth
   useEffect(() => {
@@ -98,6 +99,28 @@ export default function App() {
     }, (err) => {
       console.error("Error subscribing to exchange rates from Firestore:", err);
       setRates(DEFAULT_RATES);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // 2.5 Real-time synchronization of company BML account configuration from Firestore
+  useEffect(() => {
+    const bmlDocRef = doc(db, 'company_accounts', 'bml');
+    const unsubscribe = onSnapshot(bmlDocRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data() as Partial<CompanyBmlConfig>;
+        setCompanyBmlConfig({
+          ...DEFAULT_COMPANY_BML_CONFIG,
+          ...data,
+          isActive: data.isActive !== undefined ? data.isActive : true
+        });
+      } else {
+        setCompanyBmlConfig(DEFAULT_COMPANY_BML_CONFIG);
+      }
+    }, (err) => {
+      console.warn("Notice subscribing to company BML account from Firestore:", err);
+      setCompanyBmlConfig(DEFAULT_COMPANY_BML_CONFIG);
     });
 
     return () => unsubscribe();
@@ -182,6 +205,7 @@ export default function App() {
           <AdminDashboard
             currentProfile={userProfile}
             rates={rates}
+            companyBmlConfig={companyBmlConfig}
             onRatesUpdated={() => {}}
             onProfileModified={(updated) => setUserProfile(updated)}
           />
@@ -194,6 +218,7 @@ export default function App() {
             userProfile={userProfile}
             onProfileUpdate={(updated) => setUserProfile(updated)}
             rates={rates}
+            companyBmlConfig={companyBmlConfig}
             isBinanceFeedLive={isBinanceFeedLive}
           />
         </main>

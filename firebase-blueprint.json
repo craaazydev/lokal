@@ -139,6 +139,42 @@
         }
       },
       "required": ["id", "userId", "type", "fromCurrency", "toCurrency", "amountFrom", "amountTo", "rate", "status", "createdAt"]
+    },
+    "CompanyBmlConfig": {
+      "title": "Company BML Account Configuration",
+      "description": "Company Bank of Maldives deposit account information and deposit instructions.",
+      "type": "object",
+      "properties": {
+        "accountNumber": {
+          "type": "string",
+          "description": "Bank account number at Bank of Maldives"
+        },
+        "accountName": {
+          "type": "string",
+          "description": "Registered account holder or organization name"
+        },
+        "currency": {
+          "type": "string",
+          "description": "Account currency (e.g. MVR, USD)"
+        },
+        "bankName": {
+          "type": "string",
+          "description": "Name of the financial institution"
+        },
+        "depositInstruction": {
+          "type": "string",
+          "description": "Specific deposit instructions or memo requirements shown to users"
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Whether this deposit account is active for incoming transfers"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["accountNumber", "accountName", "currency"]
     }
   },
   "firestore": {
@@ -153,6 +189,10 @@
     "transactions/{transactionId}": {
       "schema": "Transaction",
       "description": "Exchange transactions created by users and approved by admins"
+    },
+    "company_accounts/{accountId}": {
+      "schema": "CompanyBmlConfig",
+      "description": "Corporate settlement accounts, modified by admins and readable by all users"
     }
   }
 }

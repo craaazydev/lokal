@@ -148,5 +148,11 @@ service cloud.firestore {
       
       allow delete: if isAdmin();
     }
+
+    // Rules for Corporate Settlement Accounts (e.g. BML deposit account) - public read, admin write
+    match /company_accounts/{accountId} {
+      allow read: if true;
+      allow write, delete: if isAdmin();
+    }
   }
 }
