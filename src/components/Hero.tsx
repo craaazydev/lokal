@@ -33,15 +33,14 @@ export default function Hero({ onTradeClick, onOpenAuth, isAuthenticated }: Hero
             </div>
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-white tracking-tight leading-[1.15]">
-              Cryptocurrency OTC Trades with{' '}
+              Lokal
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#E5C158] via-gold to-[#F5D77F]">
-                Absolute Speed
+                Exchange Hub
               </span>{' '}
-              & Precision.
             </h1>
 
             <p className="text-neutral-400 text-base sm:text-lg leading-relaxed max-w-xl font-normal">
-              Direct peer-to-desk liquidity bridging USDT, USD, and MVR with guaranteed zero-slippage execution and sovereign escrow settlements.
+              Maldives across locals exchange made easier
             </p>
 
             {/* CTA controls */}
