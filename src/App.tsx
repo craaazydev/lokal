@@ -8,7 +8,7 @@ import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, collection, getDocs, writeBatch, updateDoc, onSnapshot, setDoc } from 'firebase/firestore';
 import { DEFAULT_RATES } from './data';
-import { ExchangeRate, UserProfile, CompanyBmlConfig, DEFAULT_COMPANY_BML_CONFIG } from './types';
+import { ExchangeRate, UserProfile, CompanyBmlConfig, DEFAULT_COMPANY_BML_CONFIG, DEFAULT_COMPANY_BML_USD_CONFIG } from './types';
 
 // Component Imports
 import Navbar from './components/Navbar';
@@ -36,6 +36,7 @@ export default function App() {
   const [selectedActionType, setSelectedActionType] = useState<'buy' | 'sell'>('buy');
   const [refetchKey, setRefetchKey] = useState(0); // increment to trigger transactions history re-render
   const [companyBmlConfig, setCompanyBmlConfig] = useState<CompanyBmlConfig>(DEFAULT_COMPANY_BML_CONFIG);
+  const [companyBmlUsdConfig, setCompanyBmlUsdConfig] = useState<CompanyBmlConfig>(DEFAULT_COMPANY_BML_USD_CONFIG);
 
   // 1. Fetch user profile when user logs in/out from Firebase Auth
   useEffect(() => {
@@ -126,6 +127,28 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
+  // 2.6 Real-time synchronization of company BML USD account configuration from Firestore
+  useEffect(() => {
+    const bmlUsdDocRef = doc(db, 'company_accounts', 'bml_usd');
+    const unsubscribe = onSnapshot(bmlUsdDocRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data() as Partial<CompanyBmlConfig>;
+        setCompanyBmlUsdConfig({
+          ...DEFAULT_COMPANY_BML_USD_CONFIG,
+          ...data,
+          isActive: data.isActive !== undefined ? data.isActive : true
+        });
+      } else {
+        setCompanyBmlUsdConfig(DEFAULT_COMPANY_BML_USD_CONFIG);
+      }
+    }, (err) => {
+      console.warn("Notice subscribing to company BML USD account from Firestore:", err);
+      setCompanyBmlUsdConfig(DEFAULT_COMPANY_BML_USD_CONFIG);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
   // 3. User Logs Out
   const handleLogout = async () => {
     try {
@@ -206,6 +229,7 @@ export default function App() {
             currentProfile={userProfile}
             rates={rates}
             companyBmlConfig={companyBmlConfig}
+            companyBmlUsdConfig={companyBmlUsdConfig}
             onRatesUpdated={() => {}}
             onProfileModified={(updated) => setUserProfile(updated)}
           />
@@ -219,6 +243,7 @@ export default function App() {
             onProfileUpdate={(updated) => setUserProfile(updated)}
             rates={rates}
             companyBmlConfig={companyBmlConfig}
+            companyBmlUsdConfig={companyBmlUsdConfig}
             isBinanceFeedLive={isBinanceFeedLive}
           />
         </main>

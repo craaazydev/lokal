@@ -161,3 +161,12 @@ export const DEFAULT_COMPANY_BML_CONFIG: CompanyBmlConfig = {
   depositInstruction: 'Please deposit your Maldivian Rufiyaa (MVR) settlement to this Bank of Maldives account. Enter your username or trade order ID in the transfer remarks/memo, and save your receipt for instant escrow clearance.',
   isActive: true,
 };
+
+export const DEFAULT_COMPANY_BML_USD_CONFIG: CompanyBmlConfig = {
+  accountNumber: '7730000179058',
+  accountName: 'redjin / LokalMV',
+  currency: 'USD',
+  bankName: 'Bank of Maldives',
+  depositInstruction: 'Please deposit your US Dollar (USD) settlement to this Bank of Maldives USD account. Enter your username or trade order ID in the transfer remarks/memo, and save your receipt for instant escrow clearance.',
+  isActive: true,
+};

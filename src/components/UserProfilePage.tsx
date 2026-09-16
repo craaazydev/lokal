@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
-import { UserProfile, ExchangeRate, CompanyBmlConfig, DEFAULT_COMPANY_BML_CONFIG, getBuyRate, getSellRate, formatNum } from '../types';
+import { UserProfile, ExchangeRate, CompanyBmlConfig, DEFAULT_COMPANY_BML_CONFIG, DEFAULT_COMPANY_BML_USD_CONFIG, getBuyRate, getSellRate, formatNum } from '../types';
 import { 
   User, 
   Phone, 
@@ -34,6 +34,7 @@ interface UserProfilePageProps {
   onProfileUpdate: (updated: UserProfile) => void;
   rates: ExchangeRate[];
   companyBmlConfig?: CompanyBmlConfig;
+  companyBmlUsdConfig?: CompanyBmlConfig;
   isBinanceFeedLive: boolean;
 }
 
@@ -42,6 +43,7 @@ export default function UserProfilePage({
   onProfileUpdate, 
   rates, 
   companyBmlConfig,
+  companyBmlUsdConfig,
   isBinanceFeedLive 
 }: UserProfilePageProps) {
   
@@ -82,8 +84,10 @@ export default function UserProfilePage({
   const [errorMessage, setErrorMessage] = useState('');
   const [copiedCompanyId, setCopiedCompanyId] = useState(false);
   const [copiedBmlAccount, setCopiedBmlAccount] = useState(false);
+  const [copiedBmlUsdAccount, setCopiedBmlUsdAccount] = useState(false);
 
   const currentBml = companyBmlConfig || DEFAULT_COMPANY_BML_CONFIG;
+  const currentBmlUsd = companyBmlUsdConfig || DEFAULT_COMPANY_BML_USD_CONFIG;
 
   const handleCopyCompanyBinanceId = () => {
     const textToCopy = '179047031';
@@ -101,6 +105,15 @@ export default function UserProfilePage({
     }
     setCopiedBmlAccount(true);
     setTimeout(() => setCopiedBmlAccount(false), 2000);
+  };
+
+  const handleCopyBmlUsdAccount = () => {
+    const textToCopy = currentBmlUsd.accountNumber || '7730000179058';
+    if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(textToCopy).catch(() => {});
+    }
+    setCopiedBmlUsdAccount(true);
+    setTimeout(() => setCopiedBmlUsdAccount(false), 2000);
   };
   
   // Simulated Diagnostic Console
@@ -263,8 +276,8 @@ export default function UserProfilePage({
         </div>
       </div>
 
-      {/* Official Corporate Deposit Channels: Binance Pay & BML Bank */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 mb-8">
+      {/* Official Corporate Deposit Channels: Binance Pay & BML Bank (MVR & USD) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 mb-8">
         {/* Card 1: Official Company Binance ID */}
         <div 
           id="company-binance-id-card" 
@@ -283,7 +296,7 @@ export default function UserProfilePage({
                     <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400 bg-amber-500/10 border border-amber-500/25 px-2 py-0.5 rounded-md">
                       Company Binance ID
                     </span>
-                    <span className="text-xs text-neutral-400">Direct OTC Deposit & Pay Rail</span>
+                    <span className="text-xs text-neutral-400">Direct OTC Deposit Rail</span>
                   </div>
                   
                   <div className="flex items-center gap-3 sm:gap-4 mt-2 flex-wrap">
@@ -335,7 +348,7 @@ export default function UserProfilePage({
           </div>
         </div>
 
-        {/* Card 2: Official Company BML Bank Account */}
+        {/* Card 2: Official Company BML MVR Bank Account */}
         <div 
           id="company-bml-account-card" 
           className="bg-neutral-900/80 border border-rose-500/30 hover:border-rose-500/50 rounded-2xl p-4 sm:p-5 shadow-xl backdrop-blur-sm relative overflow-hidden transition-all flex flex-col justify-between"
@@ -351,9 +364,9 @@ export default function UserProfilePage({
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-rose-400 bg-rose-500/10 border border-rose-500/25 px-2 py-0.5 rounded-md">
-                      Company {currentBml.bankName || 'BML'} Account
+                      Company {currentBml.bankName || 'BML'} (MVR)
                     </span>
-                    <span className="text-xs text-neutral-400">Direct {currentBml.currency || 'MVR'} Deposit Rail</span>
+                    <span className="text-xs text-neutral-400">Direct {currentBml.currency || 'MVR'} Settlement</span>
                     {currentBml.isActive === false ? (
                       <span className="text-[10px] font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/25 px-2 py-0.5 rounded-md">
                         Maintenance Mode
@@ -409,6 +422,85 @@ export default function UserProfilePage({
               <Info className="h-4 w-4 text-rose-400 shrink-0 mt-0.5" />
               <p className="text-[11px] text-neutral-300 leading-relaxed">
                 <strong className="text-rose-300">Deposit Instruction:</strong> {currentBml.depositInstruction || DEFAULT_COMPANY_BML_CONFIG.depositInstruction}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 3: Official Company BML USD Bank Account */}
+        <div 
+          id="company-bml-usd-account-card" 
+          className="bg-neutral-900/80 border border-emerald-500/30 hover:border-emerald-500/50 rounded-2xl p-4 sm:p-5 shadow-xl backdrop-blur-sm relative overflow-hidden transition-all flex flex-col justify-between"
+        >
+          <div className="absolute top-0 right-0 w-36 h-36 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none" />
+          
+          <div className="relative z-10">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-start sm:items-center gap-3.5">
+                <div className="h-10 w-10 sm:h-11 sm:w-11 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-emerald-400 shrink-0">
+                  <Landmark className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 px-2 py-0.5 rounded-md">
+                      Company {currentBmlUsd.bankName || 'BML'} (USD)
+                    </span>
+                    <span className="text-xs text-neutral-400">Direct {currentBmlUsd.currency || 'USD'} Settlement</span>
+                    {currentBmlUsd.isActive === false ? (
+                      <span className="text-[10px] font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/25 px-2 py-0.5 rounded-md">
+                        Maintenance Mode
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 px-2 py-0.5 rounded-md">
+                        Active Deposit Rail
+                      </span>
+                    )}
+                  </div>
+                  
+                  <div className="flex items-center gap-3 sm:gap-4 mt-2 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-neutral-400">{currentBmlUsd.bankName || 'BML'} ({currentBmlUsd.currency || 'USD'}):</span>
+                      <span className="text-base sm:text-lg font-bold text-white font-mono tracking-wide bg-neutral-950/80 px-2.5 py-1 rounded-lg border border-neutral-800">
+                        {currentBmlUsd.accountNumber}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-neutral-400">Name:</span>
+                      <span className="text-xs sm:text-sm font-semibold text-emerald-300 font-mono bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-1 rounded-lg">
+                        {currentBmlUsd.accountName}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+                <button
+                  type="button"
+                  id="copy-company-bml-usd-account-btn"
+                  onClick={handleCopyBmlUsdAccount}
+                  className="inline-flex items-center gap-2 bg-emerald-400/15 hover:bg-emerald-400/25 text-emerald-300 border border-emerald-400/35 px-4 py-2.5 rounded-xl text-xs font-semibold tracking-wider transition-all cursor-pointer shadow-sm hover:scale-[1.02]"
+                  title={`Copy ${currentBmlUsd.bankName || 'BML'} USD Account ${currentBmlUsd.accountNumber}`}
+                >
+                  {copiedBmlUsdAccount ? (
+                    <>
+                      <Check className="h-4 w-4 text-emerald-400" />
+                      <span className="text-emerald-400">Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-4 w-4 text-emerald-400" />
+                      <span>Copy Acct</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 pt-3.5 border-t border-neutral-800/80 flex items-start gap-2.5">
+              <Info className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
+              <p className="text-[11px] text-neutral-300 leading-relaxed">
+                <strong className="text-emerald-300">Deposit Instruction:</strong> {currentBmlUsd.depositInstruction || DEFAULT_COMPANY_BML_USD_CONFIG.depositInstruction}
               </p>
             </div>
           </div>

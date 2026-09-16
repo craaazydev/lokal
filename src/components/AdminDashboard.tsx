@@ -7,13 +7,14 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, doc, query, getDocs, updateDoc, writeBatch, setDoc } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../firebase';
-import { UserProfile, ExchangeRate, Transaction, WithdrawalRequest, CompanyBmlConfig, DEFAULT_COMPANY_BML_CONFIG, getBuyRate, getSellRate, getBuyCommissionValue, getSellCommissionValue, formatNum, formatDate } from '../types';
+import { UserProfile, ExchangeRate, Transaction, WithdrawalRequest, CompanyBmlConfig, DEFAULT_COMPANY_BML_CONFIG, DEFAULT_COMPANY_BML_USD_CONFIG, getBuyRate, getSellRate, getBuyCommissionValue, getSellCommissionValue, formatNum, formatDate } from '../types';
 import { ShieldAlert, Users, Percent, ListOrdered, Check, X, ShieldAlert as AlertIcon, RefreshCw, Sparkles, Clock, Lock, Unlock, Key, Eye, EyeOff, Terminal, Landmark, Save, RotateCcw, Copy, CheckCircle2, AlertTriangle, Building } from 'lucide-react';
 
 interface AdminDashboardProps {
   currentProfile: UserProfile | null;
   rates: ExchangeRate[];
   companyBmlConfig?: CompanyBmlConfig;
+  companyBmlUsdConfig?: CompanyBmlConfig;
   onRatesUpdated: () => void;
   onProfileModified: (updatedProfile: UserProfile) => void;
 }
@@ -22,6 +23,7 @@ export default function AdminDashboard({
   currentProfile,
   rates,
   companyBmlConfig,
+  companyBmlUsdConfig,
   onRatesUpdated,
   onProfileModified,
 }: AdminDashboardProps) {
@@ -54,7 +56,10 @@ export default function AdminDashboard({
   const [loading, setLoading] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState<'rates' | 'kyc' | 'transactions' | 'withdrawals' | 'bml'>('rates');
 
-  // Company BML Form State
+  // Subtab switcher between MVR account and USD account
+  const [bmlActiveCurrencyTab, setBmlActiveCurrencyTab] = useState<'mvr' | 'usd'>('mvr');
+
+  // Company BML MVR Form State
   const [bmlForm, setBmlForm] = useState<CompanyBmlConfig>(() => {
     return companyBmlConfig || DEFAULT_COMPANY_BML_CONFIG;
   });
@@ -63,12 +68,27 @@ export default function AdminDashboard({
   const [bmlSaveError, setBmlSaveError] = useState('');
   const [bmlCopiedPreview, setBmlCopiedPreview] = useState(false);
 
+  // Company BML USD Form State
+  const [bmlUsdForm, setBmlUsdForm] = useState<CompanyBmlConfig>(() => {
+    return companyBmlUsdConfig || DEFAULT_COMPANY_BML_USD_CONFIG;
+  });
+  const [bmlUsdSaving, setBmlUsdSaving] = useState(false);
+  const [bmlUsdSaveSuccess, setBmlUsdSaveSuccess] = useState(false);
+  const [bmlUsdSaveError, setBmlUsdSaveError] = useState('');
+  const [bmlUsdCopiedPreview, setBmlUsdCopiedPreview] = useState(false);
+
   // Synchronize incoming BML config updates
   useEffect(() => {
     if (companyBmlConfig) {
       setBmlForm(companyBmlConfig);
     }
   }, [companyBmlConfig]);
+
+  useEffect(() => {
+    if (companyBmlUsdConfig) {
+      setBmlUsdForm(companyBmlUsdConfig);
+    }
+  }, [companyBmlUsdConfig]);
 
   // Edited rates state: indexes changes locally before writing
   const [editedRates, setEditedRates] = useState<Record<string, Record<string, string>> >({});
@@ -132,6 +152,63 @@ export default function AdminDashboard({
     }
     setBmlCopiedPreview(true);
     setTimeout(() => setBmlCopiedPreview(false), 2000);
+  };
+
+  // Handle saving company BML USD deposit settings to Firestore
+  const handleSaveBmlUsdConfig = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setBmlUsdSaving(true);
+    setBmlUsdSaveError('');
+    setBmlUsdSaveSuccess(false);
+
+    try {
+      if (!bmlUsdForm.accountNumber.trim()) {
+        throw new Error('USD account number cannot be empty.');
+      }
+      if (!bmlUsdForm.accountName.trim()) {
+        throw new Error('Beneficiary / Account holder name cannot be empty.');
+      }
+
+      const bmlUsdDocRef = doc(db, 'company_accounts', 'bml_usd');
+      const payload: CompanyBmlConfig = {
+        accountNumber: bmlUsdForm.accountNumber.trim(),
+        accountName: bmlUsdForm.accountName.trim(),
+        currency: (bmlUsdForm.currency || 'USD').trim().toUpperCase(),
+        bankName: (bmlUsdForm.bankName || 'Bank of Maldives').trim(),
+        depositInstruction: bmlUsdForm.depositInstruction ? bmlUsdForm.depositInstruction.trim() : DEFAULT_COMPANY_BML_USD_CONFIG.depositInstruction,
+        isActive: bmlUsdForm.isActive ?? true,
+        updatedAt: new Date().toISOString()
+      };
+
+      await setDoc(bmlUsdDocRef, payload, { merge: true });
+      setBmlUsdSaveSuccess(true);
+      setTimeout(() => setBmlUsdSaveSuccess(false), 4500);
+      if (onRatesUpdated) onRatesUpdated();
+    } catch (err: any) {
+      console.error('Error saving company BML USD settings:', err);
+      try {
+        handleFirestoreError(err, OperationType.UPDATE, 'company_accounts/bml_usd');
+      } catch (formattedErr: any) {
+        setBmlUsdSaveError(formattedErr.message || 'Failed to update company BML USD account settings.');
+      }
+    } finally {
+      setBmlUsdSaving(false);
+    }
+  };
+
+  const handleResetBmlUsdToDefault = () => {
+    setBmlUsdForm(DEFAULT_COMPANY_BML_USD_CONFIG);
+    setBmlUsdSaveError('');
+    setBmlUsdSaveSuccess(false);
+  };
+
+  const handleCopyPreviewUsdAccount = () => {
+    const textToCopy = bmlUsdForm.accountNumber;
+    if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(textToCopy).catch(() => {});
+    }
+    setBmlUsdCopiedPreview(true);
+    setTimeout(() => setBmlUsdCopiedPreview(false), 2000);
   };
 
   // Fetch users with pending, approved, or rejected KYC
@@ -546,14 +623,23 @@ export default function AdminDashboard({
             }`}
           >
             <Landmark className="h-4 w-4 text-rose-400" />
-            <span>Company BML Account</span>
-            <span className={`ml-auto text-[10px] font-mono px-2 py-0.5 rounded-full border ${
-              (bmlForm.isActive ?? true)
-                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25'
-                : 'bg-amber-500/10 text-amber-400 border-amber-500/25'
-            }`}>
-              {(bmlForm.isActive ?? true) ? 'Active' : 'Paused'}
-            </span>
+            <span>Company BML Accounts</span>
+            <div className="ml-auto flex items-center gap-1">
+              <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${
+                (bmlForm.isActive ?? true)
+                  ? 'bg-rose-500/10 text-rose-400 border-rose-500/25'
+                  : 'bg-neutral-950 text-neutral-500 border-neutral-800'
+              }`}>
+                MVR
+              </span>
+              <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${
+                (bmlUsdForm.isActive ?? true)
+                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25'
+                  : 'bg-neutral-950 text-neutral-500 border-neutral-800'
+              }`}>
+                USD
+              </span>
+            </div>
           </button>
 
           <div className="mt-6 p-4 bg-neutral-900/60 border border-neutral-800 rounded-xl">
@@ -1002,25 +1088,33 @@ export default function AdminDashboard({
             </div>
           )}
 
-          {/* 5. COMPANY BML ACCOUNT CONFIGURATION */}
+          {/* 5. COMPANY BML ACCOUNT CONFIGURATION (MVR & USD) */}
           {activeSubTab === 'bml' && (
             <div id="admin-bml-settings-panel" className="space-y-6">
               
               {/* Header */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-neutral-800">
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-xl bg-rose-500/10 border border-rose-500/25 flex items-center justify-center text-rose-400 shrink-0">
+                  <div className={`h-10 w-10 rounded-xl border flex items-center justify-center shrink-0 transition-colors ${
+                    bmlActiveCurrencyTab === 'mvr'
+                      ? 'bg-rose-500/10 border-rose-500/25 text-rose-400'
+                      : 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400'
+                  }`}>
                     <Landmark className="h-5 w-5" />
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                      Company BML Deposit Account
-                      <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-rose-500/10 text-rose-300 border border-rose-500/20">
-                        Dynamic Rail
+                      Corporate Settlement Accounts
+                      <span className={`text-[10px] uppercase font-mono px-2 py-0.5 rounded border ${
+                        bmlActiveCurrencyTab === 'mvr'
+                          ? 'bg-rose-500/10 text-rose-300 border-rose-500/20'
+                          : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
+                      }`}>
+                        {bmlActiveCurrencyTab === 'mvr' ? 'BML MVR Settlement' : 'BML USD Settlement'}
                       </span>
                     </h3>
                     <span className="text-xs text-neutral-400 block mt-0.5">
-                      Configure the official Bank of Maldives settlement account displayed across user profile cards and deposit instructions.
+                      Configure the official Bank of Maldives settlement accounts displayed across user profile cards and deposit instructions.
                     </span>
                   </div>
                 </div>
@@ -1028,285 +1122,616 @@ export default function AdminDashboard({
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={handleResetBmlToDefault}
+                    onClick={bmlActiveCurrencyTab === 'mvr' ? handleResetBmlToDefault : handleResetBmlUsdToDefault}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800/80 hover:bg-neutral-800 text-neutral-300 text-xs rounded-xl border border-neutral-700/60 transition-all cursor-pointer font-medium"
-                    title="Restore default BML account values"
+                    title={`Restore default ${bmlActiveCurrencyTab.toUpperCase()} account values`}
                   >
                     <RotateCcw className="h-3.5 w-3.5" />
-                    <span>Reset Defaults</span>
+                    <span>Reset {bmlActiveCurrencyTab.toUpperCase()} Defaults</span>
                   </button>
                 </div>
               </div>
 
-              {/* Status alerts */}
-              {bmlSaveSuccess && (
-                <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center gap-2.5 text-xs text-emerald-400 animate-in fade-in duration-200">
-                  <CheckCircle2 className="h-4 w-4 shrink-0" />
-                  <span>Company BML account configuration saved successfully! Profile cards have updated live in Firestore.</span>
-                </div>
-              )}
+              {/* Currency Subtab Switcher */}
+              <div className="flex flex-col sm:flex-row items-center gap-2 p-1.5 bg-neutral-950/80 border border-neutral-800 rounded-2xl">
+                <button
+                  type="button"
+                  id="admin-bml-mvr-tab-btn"
+                  onClick={() => setBmlActiveCurrencyTab('mvr')}
+                  className={`w-full sm:w-1/2 flex items-center justify-between px-4 py-3 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                    bmlActiveCurrencyTab === 'mvr'
+                      ? 'bg-rose-500/15 border border-rose-500/40 text-rose-300 shadow-sm'
+                      : 'text-neutral-400 hover:text-white hover:bg-neutral-900 border border-transparent'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className="h-2.5 w-2.5 rounded-full bg-rose-400" />
+                    <span className="font-bold">BML MVR Account</span>
+                    <span className="text-[10px] text-neutral-400 font-mono">Maldivian Rufiyaa</span>
+                  </div>
+                  <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
+                    (bmlForm.isActive ?? true)
+                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25'
+                      : 'bg-amber-500/10 text-amber-400 border-amber-500/25'
+                  }`}>
+                    {(bmlForm.isActive ?? true) ? 'Active Rail' : 'Maintenance'}
+                  </span>
+                </button>
 
-              {bmlSaveError && (
-                <div className="p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-center gap-2.5 text-xs text-rose-400">
-                  <AlertTriangle className="h-4 w-4 shrink-0" />
-                  <span>{bmlSaveError}</span>
-                </div>
-              )}
+                <button
+                  type="button"
+                  id="admin-bml-usd-tab-btn"
+                  onClick={() => setBmlActiveCurrencyTab('usd')}
+                  className={`w-full sm:w-1/2 flex items-center justify-between px-4 py-3 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                    bmlActiveCurrencyTab === 'usd'
+                      ? 'bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 shadow-sm'
+                      : 'text-neutral-400 hover:text-white hover:bg-neutral-900 border border-transparent'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
+                    <span className="font-bold">BML USD Account</span>
+                    <span className="text-[10px] text-neutral-400 font-mono">US Dollar</span>
+                  </div>
+                  <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
+                    (bmlUsdForm.isActive ?? true)
+                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25'
+                      : 'bg-amber-500/10 text-amber-400 border-amber-500/25'
+                  }`}>
+                    {(bmlUsdForm.isActive ?? true) ? 'Active Rail' : 'Maintenance'}
+                  </span>
+                </button>
+              </div>
 
-              {/* Main 2-Column Split: Form on Left, Live Preview on Right */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                
-                {/* Form Controls */}
-                <form onSubmit={handleSaveBmlConfig} className="lg:col-span-6 space-y-4">
-                  
-                  {/* Bank Name & Currency */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="sm:col-span-2">
-                      <label className="block text-[11px] font-semibold text-neutral-300 uppercase tracking-wider mb-1.5">
-                        Financial Institution
-                      </label>
-                      <input
-                        type="text"
-                        value={bmlForm.bankName || ''}
-                        onChange={(e) => setBmlForm({ ...bmlForm, bankName: e.target.value })}
-                        placeholder="e.g. Bank of Maldives"
-                        required
-                        className="w-full bg-neutral-950 border border-neutral-800 focus:border-rose-500/60 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none transition-colors"
-                      />
+              {/* 5A. BML MVR CONFIGURATION */}
+              {bmlActiveCurrencyTab === 'mvr' ? (
+                <div className="space-y-6">
+                  {/* Status alerts */}
+                  {bmlSaveSuccess && (
+                    <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center gap-2.5 text-xs text-emerald-400 animate-in fade-in duration-200">
+                      <CheckCircle2 className="h-4 w-4 shrink-0" />
+                      <span>Company BML MVR account configuration saved successfully! Profile cards have updated live in Firestore.</span>
                     </div>
+                  )}
 
-                    <div>
-                      <label className="block text-[11px] font-semibold text-neutral-300 uppercase tracking-wider mb-1.5">
-                        Currency
-                      </label>
-                      <input
-                        type="text"
-                        value={bmlForm.currency || ''}
-                        onChange={(e) => setBmlForm({ ...bmlForm, currency: e.target.value.toUpperCase() })}
-                        placeholder="MVR"
-                        maxLength={6}
-                        required
-                        className="w-full bg-neutral-950 border border-neutral-800 focus:border-rose-500/60 rounded-xl px-3.5 py-2.5 text-xs font-mono font-bold text-white uppercase focus:outline-none transition-colors"
-                      />
+                  {bmlSaveError && (
+                    <div className="p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-center gap-2.5 text-xs text-rose-400">
+                      <AlertTriangle className="h-4 w-4 shrink-0" />
+                      <span>{bmlSaveError}</span>
                     </div>
-                  </div>
+                  )}
 
-                  {/* Account Number */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="block text-[11px] font-semibold text-neutral-300 uppercase tracking-wider">
-                        BML Account Number
-                      </label>
-                      <span className="text-[10px] text-neutral-500 font-mono">
-                        Shown highlighted in bold
-                      </span>
-                    </div>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={bmlForm.accountNumber || ''}
-                        onChange={(e) => setBmlForm({ ...bmlForm, accountNumber: e.target.value })}
-                        placeholder="e.g. 7730000179047"
-                        required
-                        className="w-full bg-neutral-950 border border-neutral-800 focus:border-rose-500/60 rounded-xl px-3.5 py-2.5 text-sm font-mono font-bold tracking-wider text-rose-300 focus:outline-none transition-colors"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Account Name / Beneficiary */}
-                  <div>
-                    <label className="block text-[11px] font-semibold text-neutral-300 uppercase tracking-wider mb-1.5">
-                      Beneficiary / Account Holder Name
-                    </label>
-                    <input
-                      type="text"
-                      value={bmlForm.accountName || ''}
-                      onChange={(e) => setBmlForm({ ...bmlForm, accountName: e.target.value })}
-                      placeholder="e.g. redjin / LokalMV"
-                      required
-                      className="w-full bg-neutral-950 border border-neutral-800 focus:border-rose-500/60 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none transition-colors"
-                    />
-                  </div>
-
-                  {/* Operational Status */}
-                  <div>
-                    <label className="block text-[11px] font-semibold text-neutral-300 uppercase tracking-wider mb-1.5">
-                      Deposit Channel Status
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setBmlForm({ ...bmlForm, isActive: true })}
-                        className={`px-3 py-2 rounded-xl text-xs font-semibold border flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                          bmlForm.isActive !== false
-                            ? 'bg-emerald-500/15 border-emerald-500/60 text-emerald-400'
-                            : 'bg-neutral-950 border-neutral-800 text-neutral-500 hover:text-neutral-300'
-                        }`}
-                      >
-                        <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                        Active (Accepting)
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setBmlForm({ ...bmlForm, isActive: false })}
-                        className={`px-3 py-2 rounded-xl text-xs font-semibold border flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                          bmlForm.isActive === false
-                            ? 'bg-amber-500/15 border-amber-500/60 text-amber-400'
-                            : 'bg-neutral-950 border-neutral-800 text-neutral-500 hover:text-neutral-300'
-                        }`}
-                      >
-                        <span className="h-2 w-2 rounded-full bg-amber-400" />
-                        Maintenance Mode
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Deposit Instructions & Remarks */}
-                  <div>
-                    <label className="block text-[11px] font-semibold text-neutral-300 uppercase tracking-wider mb-1.5">
-                      Deposit Instructions & Memo Requirement
-                    </label>
-                    <textarea
-                      rows={4}
-                      value={bmlForm.depositInstruction || ''}
-                      onChange={(e) => setBmlForm({ ...bmlForm, depositInstruction: e.target.value })}
-                      placeholder="Instructions shown directly on the user's card..."
-                      className="w-full bg-neutral-950 border border-neutral-800 focus:border-rose-500/60 rounded-xl p-3 text-xs text-neutral-200 focus:outline-none transition-colors leading-relaxed resize-none"
-                    />
-                    <span className="text-[10px] text-neutral-500 block mt-1">
-                      Instruct users to quote their order ID or username in transfer remarks for instant escrow verification.
-                    </span>
-                  </div>
-
-                  {/* Submit button */}
-                  <div className="pt-2">
-                    <button
-                      type="submit"
-                      disabled={bmlSaving}
-                      className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-400 hover:to-rose-500 text-neutral-950 font-bold px-5 py-3 rounded-xl text-xs tracking-wider uppercase transition-all shadow-lg shadow-rose-950/40 cursor-pointer disabled:opacity-50"
-                    >
-                      {bmlSaving ? (
-                        <>
-                          <RefreshCw className="h-4 w-4 animate-spin text-neutral-950" />
-                          <span>Saving Changes to Firestore...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Save className="h-4 w-4 text-neutral-950" />
-                          <span>Save BML Configuration</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-
-                </form>
-
-                {/* Right: Live Preview */}
-                <div className="lg:col-span-6 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="text-xs font-bold text-white uppercase tracking-wider">
-                        Live User Profile Preview
-                      </h4>
-                      <span className="text-[11px] text-neutral-500 block">
-                        Real-time visualization of how the profile card appears to clients:
-                      </span>
-                    </div>
-                    <span className="text-[10px] font-mono text-neutral-400 bg-neutral-900 border border-neutral-800 px-2 py-0.5 rounded-full">
-                      Auto-Updated
-                    </span>
-                  </div>
-
-                  {/* Preview Container */}
-                  <div className="p-4 bg-neutral-950/80 border border-neutral-800 rounded-2xl">
-                    <div 
-                      id="admin-bml-preview-card" 
-                      className="bg-neutral-900/90 border border-rose-500/30 rounded-2xl p-4 sm:p-5 shadow-xl relative overflow-hidden transition-all flex flex-col justify-between"
-                    >
-                      <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/5 rounded-full blur-xl pointer-events-none" />
+                  {/* Main 2-Column Split: Form on Left, Live Preview on Right */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                    
+                    {/* Form Controls */}
+                    <form onSubmit={handleSaveBmlConfig} className="lg:col-span-6 space-y-4">
                       
-                      <div className="relative z-10">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                          <div className="flex items-start sm:items-center gap-3">
-                            <div className="h-10 w-10 rounded-xl bg-rose-500/10 border border-rose-500/25 flex items-center justify-center text-rose-400 shrink-0">
-                              <Landmark className="h-5 w-5" />
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-[11px] font-bold uppercase tracking-wider text-rose-400 bg-rose-500/10 border border-rose-500/25 px-2 py-0.5 rounded-md">
-                                  Company {bmlForm.bankName || 'BML'} Account
-                                </span>
-                                <span className="text-xs text-neutral-400">Direct {bmlForm.currency || 'MVR'} Deposit Rail</span>
-                                {bmlForm.isActive === false ? (
-                                  <span className="text-[10px] font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/25 px-2 py-0.5 rounded-md">
-                                    Maintenance Mode
-                                  </span>
-                                ) : (
-                                  <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 px-2 py-0.5 rounded-md">
-                                    Active Deposit Rail
-                                  </span>
-                                )}
-                              </div>
-                              
-                              <div className="flex items-center gap-3 mt-2 flex-wrap">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs text-neutral-400">{bmlForm.bankName || 'BML'} ({bmlForm.currency || 'MVR'}):</span>
-                                  <span className="text-sm sm:text-base font-bold text-white font-mono tracking-wide bg-neutral-950/90 px-2.5 py-1 rounded-lg border border-neutral-800">
-                                    {bmlForm.accountNumber || '—'}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs text-neutral-400">Name:</span>
-                                  <span className="text-xs sm:text-sm font-semibold text-rose-300 font-mono bg-rose-500/10 border border-rose-500/25 px-2.5 py-1 rounded-lg">
-                                    {bmlForm.accountName || '—'}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
-                            <button
-                              type="button"
-                              onClick={handleCopyPreviewAccount}
-                              className="inline-flex items-center gap-1.5 bg-rose-400/15 hover:bg-rose-400/25 text-rose-300 border border-rose-400/35 px-3 py-2 rounded-xl text-xs font-semibold tracking-wider transition-all cursor-pointer shadow-sm hover:scale-[1.02]"
-                            >
-                              {bmlCopiedPreview ? (
-                                <>
-                                  <Check className="h-3.5 w-3.5 text-emerald-400" />
-                                  <span className="text-emerald-400 text-xs">Copied!</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Copy className="h-3.5 w-3.5 text-rose-400" />
-                                  <span className="text-xs">Copy Acct</span>
-                                </>
-                              )}
-                            </button>
-                          </div>
+                      {/* Bank Name & Currency */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="sm:col-span-2">
+                          <label className="block text-[11px] font-semibold text-neutral-300 uppercase tracking-wider mb-1.5">
+                            Financial Institution
+                          </label>
+                          <input
+                            type="text"
+                            value={bmlForm.bankName || ''}
+                            onChange={(e) => setBmlForm({ ...bmlForm, bankName: e.target.value })}
+                            placeholder="e.g. Bank of Maldives"
+                            required
+                            className="w-full bg-neutral-950 border border-neutral-800 focus:border-rose-500/60 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none transition-colors"
+                          />
                         </div>
 
-                        <div className="mt-3.5 pt-3 border-t border-neutral-800/80 flex items-start gap-2.5">
-                          <span className="text-xs text-rose-400 shrink-0 mt-0.5">ℹ</span>
-                          <p className="text-[11px] text-neutral-300 leading-relaxed">
-                            <strong className="text-rose-300">Deposit Instruction:</strong> {bmlForm.depositInstruction || DEFAULT_COMPANY_BML_CONFIG.depositInstruction}
-                          </p>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-neutral-300 uppercase tracking-wider mb-1.5">
+                            Currency
+                          </label>
+                          <input
+                            type="text"
+                            value={bmlForm.currency || ''}
+                            onChange={(e) => setBmlForm({ ...bmlForm, currency: e.target.value.toUpperCase() })}
+                            placeholder="MVR"
+                            maxLength={6}
+                            required
+                            className="w-full bg-neutral-950 border border-neutral-800 focus:border-rose-500/60 rounded-xl px-3.5 py-2.5 text-xs font-mono font-bold text-white uppercase focus:outline-none transition-colors"
+                          />
                         </div>
                       </div>
-                    </div>
-                  </div>
 
-                  <div className="p-4 bg-neutral-900/40 border border-neutral-800/80 rounded-xl space-y-2 text-xs text-neutral-400">
-                    <span className="font-semibold text-neutral-300 block">Integration Note</span>
-                    <p className="leading-relaxed text-[11px]">
-                      When you click <strong className="text-white font-medium">Save BML Configuration</strong>, the Firestore document at path <code className="text-gold font-mono text-[10px] bg-neutral-950 px-1 py-0.5 rounded border border-neutral-800">company_accounts/bml</code> is updated immediately. Any logged-in customer viewing their profile sees the new account number and memo instructions in real time.
-                    </p>
+                      {/* Account Number */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="block text-[11px] font-semibold text-neutral-300 uppercase tracking-wider">
+                            BML MVR Account Number
+                          </label>
+                          <span className="text-[10px] text-neutral-500 font-mono">
+                            Shown highlighted in bold
+                          </span>
+                        </div>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={bmlForm.accountNumber || ''}
+                            onChange={(e) => setBmlForm({ ...bmlForm, accountNumber: e.target.value })}
+                            placeholder="e.g. 7730000179047"
+                            required
+                            className="w-full bg-neutral-950 border border-neutral-800 focus:border-rose-500/60 rounded-xl px-3.5 py-2.5 text-sm font-mono font-bold tracking-wider text-rose-300 focus:outline-none transition-colors"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Account Name / Beneficiary */}
+                      <div>
+                        <label className="block text-[11px] font-semibold text-neutral-300 uppercase tracking-wider mb-1.5">
+                          Beneficiary / Account Holder Name
+                        </label>
+                        <input
+                          type="text"
+                          value={bmlForm.accountName || ''}
+                          onChange={(e) => setBmlForm({ ...bmlForm, accountName: e.target.value })}
+                          placeholder="e.g. redjin / LokalMV"
+                          required
+                          className="w-full bg-neutral-950 border border-neutral-800 focus:border-rose-500/60 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none transition-colors"
+                        />
+                      </div>
+
+                      {/* Operational Status */}
+                      <div>
+                        <label className="block text-[11px] font-semibold text-neutral-300 uppercase tracking-wider mb-1.5">
+                          Deposit Channel Status
+                        </label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setBmlForm({ ...bmlForm, isActive: true })}
+                            className={`px-3 py-2 rounded-xl text-xs font-semibold border flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                              bmlForm.isActive !== false
+                                ? 'bg-emerald-500/15 border-emerald-500/60 text-emerald-400'
+                                : 'bg-neutral-950 border-neutral-800 text-neutral-500 hover:text-neutral-300'
+                            }`}
+                          >
+                            <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                            Active (Accepting)
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setBmlForm({ ...bmlForm, isActive: false })}
+                            className={`px-3 py-2 rounded-xl text-xs font-semibold border flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                              bmlForm.isActive === false
+                                ? 'bg-amber-500/15 border-amber-500/60 text-amber-400'
+                                : 'bg-neutral-950 border-neutral-800 text-neutral-500 hover:text-neutral-300'
+                            }`}
+                          >
+                            <span className="h-2 w-2 rounded-full bg-amber-400" />
+                            Maintenance Mode
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Deposit Instructions & Remarks */}
+                      <div>
+                        <label className="block text-[11px] font-semibold text-neutral-300 uppercase tracking-wider mb-1.5">
+                          Deposit Instructions & Memo Requirement
+                        </label>
+                        <textarea
+                          rows={4}
+                          value={bmlForm.depositInstruction || ''}
+                          onChange={(e) => setBmlForm({ ...bmlForm, depositInstruction: e.target.value })}
+                          placeholder="Instructions shown directly on the user's card..."
+                          className="w-full bg-neutral-950 border border-neutral-800 focus:border-rose-500/60 rounded-xl p-3 text-xs text-neutral-200 focus:outline-none transition-colors leading-relaxed resize-none"
+                        />
+                        <span className="text-[10px] text-neutral-500 block mt-1">
+                          Instruct users to quote their order ID or username in transfer remarks for instant escrow verification.
+                        </span>
+                      </div>
+
+                      {/* Submit button */}
+                      <div className="pt-2">
+                        <button
+                          type="submit"
+                          disabled={bmlSaving}
+                          className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-400 hover:to-rose-500 text-neutral-950 font-bold px-5 py-3 rounded-xl text-xs tracking-wider uppercase transition-all shadow-lg shadow-rose-950/40 cursor-pointer disabled:opacity-50"
+                        >
+                          {bmlSaving ? (
+                            <>
+                              <RefreshCw className="h-4 w-4 animate-spin text-neutral-950" />
+                              <span>Saving Changes to Firestore...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Save className="h-4 w-4 text-neutral-950" />
+                              <span>Save BML MVR Configuration</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                    </form>
+
+                    {/* Right: Live Preview */}
+                    <div className="lg:col-span-6 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                            Live User Profile Preview
+                          </h4>
+                          <span className="text-[11px] text-neutral-500 block">
+                            Real-time visualization of how the MVR card appears to clients:
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-mono text-neutral-400 bg-neutral-900 border border-neutral-800 px-2 py-0.5 rounded-full">
+                          Auto-Updated
+                        </span>
+                      </div>
+
+                      {/* Preview Container */}
+                      <div className="p-4 bg-neutral-950/80 border border-neutral-800 rounded-2xl">
+                        <div 
+                          id="admin-bml-preview-card" 
+                          className="bg-neutral-900/90 border border-rose-500/30 rounded-2xl p-4 sm:p-5 shadow-xl relative overflow-hidden transition-all flex flex-col justify-between"
+                        >
+                          <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/5 rounded-full blur-xl pointer-events-none" />
+                          
+                          <div className="relative z-10">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                              <div className="flex items-start sm:items-center gap-3">
+                                <div className="h-10 w-10 rounded-xl bg-rose-500/10 border border-rose-500/25 flex items-center justify-center text-rose-400 shrink-0">
+                                  <Landmark className="h-5 w-5" />
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-[11px] font-bold uppercase tracking-wider text-rose-400 bg-rose-500/10 border border-rose-500/25 px-2 py-0.5 rounded-md">
+                                      Company {bmlForm.bankName || 'BML'} (MVR)
+                                    </span>
+                                    <span className="text-xs text-neutral-400">Direct {bmlForm.currency || 'MVR'} Settlement</span>
+                                    {bmlForm.isActive === false ? (
+                                      <span className="text-[10px] font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/25 px-2 py-0.5 rounded-md">
+                                        Maintenance Mode
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 px-2 py-0.5 rounded-md">
+                                        Active Deposit Rail
+                                      </span>
+                                    )}
+                                  </div>
+                                  
+                                  <div className="flex items-center gap-3 mt-2 flex-wrap">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs text-neutral-400">{bmlForm.bankName || 'BML'} ({bmlForm.currency || 'MVR'}):</span>
+                                      <span className="text-sm sm:text-base font-bold text-white font-mono tracking-wide bg-neutral-950/90 px-2.5 py-1 rounded-lg border border-neutral-800">
+                                        {bmlForm.accountNumber || '—'}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs text-neutral-400">Name:</span>
+                                      <span className="text-xs sm:text-sm font-semibold text-rose-300 font-mono bg-rose-500/10 border border-rose-500/25 px-2.5 py-1 rounded-lg">
+                                        {bmlForm.accountName || '—'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={handleCopyPreviewAccount}
+                                  className="inline-flex items-center gap-1.5 bg-rose-400/15 hover:bg-rose-400/25 text-rose-300 border border-rose-400/35 px-3 py-2 rounded-xl text-xs font-semibold tracking-wider transition-all cursor-pointer shadow-sm hover:scale-[1.02]"
+                                >
+                                  {bmlCopiedPreview ? (
+                                    <>
+                                      <Check className="h-3.5 w-3.5 text-emerald-400" />
+                                      <span className="text-emerald-400 text-xs">Copied!</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Copy className="h-3.5 w-3.5 text-rose-400" />
+                                      <span className="text-xs">Copy Acct</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="mt-3.5 pt-3 border-t border-neutral-800/80 flex items-start gap-2.5">
+                              <span className="text-xs text-rose-400 shrink-0 mt-0.5">ℹ</span>
+                              <p className="text-[11px] text-neutral-300 leading-relaxed">
+                                <strong className="text-rose-300">Deposit Instruction:</strong> {bmlForm.depositInstruction || DEFAULT_COMPANY_BML_CONFIG.depositInstruction}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="p-4 bg-neutral-900/40 border border-neutral-800/80 rounded-xl space-y-2 text-xs text-neutral-400">
+                        <span className="font-semibold text-neutral-300 block">Integration Note</span>
+                        <p className="leading-relaxed text-[11px]">
+                          When you click <strong className="text-white font-medium">Save BML MVR Configuration</strong>, the Firestore document at path <code className="text-rose-400 font-mono text-[10px] bg-neutral-950 px-1 py-0.5 rounded border border-neutral-800">company_accounts/bml</code> is updated immediately. Any customer viewing their profile sees the updated details in real time.
+                        </p>
+                      </div>
+
+                    </div>
+
                   </div>
 
                 </div>
+              ) : (
+                /* 5B. BML USD CONFIGURATION */
+                <div className="space-y-6">
+                  {/* Status alerts */}
+                  {bmlUsdSaveSuccess && (
+                    <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center gap-2.5 text-xs text-emerald-400 animate-in fade-in duration-200">
+                      <CheckCircle2 className="h-4 w-4 shrink-0" />
+                      <span>Company BML USD account configuration saved successfully! Profile cards have updated live in Firestore.</span>
+                    </div>
+                  )}
 
-              </div>
+                  {bmlUsdSaveError && (
+                    <div className="p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-center gap-2.5 text-xs text-rose-400">
+                      <AlertTriangle className="h-4 w-4 shrink-0" />
+                      <span>{bmlUsdSaveError}</span>
+                    </div>
+                  )}
+
+                  {/* Main 2-Column Split: Form on Left, Live Preview on Right */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                    
+                    {/* Form Controls */}
+                    <form onSubmit={handleSaveBmlUsdConfig} className="lg:col-span-6 space-y-4">
+                      
+                      {/* Bank Name & Currency */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="sm:col-span-2">
+                          <label className="block text-[11px] font-semibold text-neutral-300 uppercase tracking-wider mb-1.5">
+                            Financial Institution
+                          </label>
+                          <input
+                            type="text"
+                            value={bmlUsdForm.bankName || ''}
+                            onChange={(e) => setBmlUsdForm({ ...bmlUsdForm, bankName: e.target.value })}
+                            placeholder="e.g. Bank of Maldives"
+                            required
+                            className="w-full bg-neutral-950 border border-neutral-800 focus:border-emerald-500/60 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none transition-colors"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-semibold text-neutral-300 uppercase tracking-wider mb-1.5">
+                            Currency
+                          </label>
+                          <input
+                            type="text"
+                            value={bmlUsdForm.currency || ''}
+                            onChange={(e) => setBmlUsdForm({ ...bmlUsdForm, currency: e.target.value.toUpperCase() })}
+                            placeholder="USD"
+                            maxLength={6}
+                            required
+                            className="w-full bg-neutral-950 border border-neutral-800 focus:border-emerald-500/60 rounded-xl px-3.5 py-2.5 text-xs font-mono font-bold text-white uppercase focus:outline-none transition-colors"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Account Number */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="block text-[11px] font-semibold text-neutral-300 uppercase tracking-wider">
+                            BML USD Account Number
+                          </label>
+                          <span className="text-[10px] text-neutral-500 font-mono">
+                            Foreign currency deposit rail
+                          </span>
+                        </div>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={bmlUsdForm.accountNumber || ''}
+                            onChange={(e) => setBmlUsdForm({ ...bmlUsdForm, accountNumber: e.target.value })}
+                            placeholder="e.g. 7730000179058"
+                            required
+                            className="w-full bg-neutral-950 border border-neutral-800 focus:border-emerald-500/60 rounded-xl px-3.5 py-2.5 text-sm font-mono font-bold tracking-wider text-emerald-300 focus:outline-none transition-colors"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Account Name / Beneficiary */}
+                      <div>
+                        <label className="block text-[11px] font-semibold text-neutral-300 uppercase tracking-wider mb-1.5">
+                          Beneficiary / Account Holder Name
+                        </label>
+                        <input
+                          type="text"
+                          value={bmlUsdForm.accountName || ''}
+                          onChange={(e) => setBmlUsdForm({ ...bmlUsdForm, accountName: e.target.value })}
+                          placeholder="e.g. redjin / LokalMV"
+                          required
+                          className="w-full bg-neutral-950 border border-neutral-800 focus:border-emerald-500/60 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none transition-colors"
+                        />
+                      </div>
+
+                      {/* Operational Status */}
+                      <div>
+                        <label className="block text-[11px] font-semibold text-neutral-300 uppercase tracking-wider mb-1.5">
+                          USD Deposit Channel Status
+                        </label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setBmlUsdForm({ ...bmlUsdForm, isActive: true })}
+                            className={`px-3 py-2 rounded-xl text-xs font-semibold border flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                              bmlUsdForm.isActive !== false
+                                ? 'bg-emerald-500/15 border-emerald-500/60 text-emerald-400'
+                                : 'bg-neutral-950 border-neutral-800 text-neutral-500 hover:text-neutral-300'
+                            }`}
+                          >
+                            <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                            Active (Accepting)
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setBmlUsdForm({ ...bmlUsdForm, isActive: false })}
+                            className={`px-3 py-2 rounded-xl text-xs font-semibold border flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                              bmlUsdForm.isActive === false
+                                ? 'bg-amber-500/15 border-amber-500/60 text-amber-400'
+                                : 'bg-neutral-950 border-neutral-800 text-neutral-500 hover:text-neutral-300'
+                            }`}
+                          >
+                            <span className="h-2 w-2 rounded-full bg-amber-400" />
+                            Maintenance Mode
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Deposit Instructions & Remarks */}
+                      <div>
+                        <label className="block text-[11px] font-semibold text-neutral-300 uppercase tracking-wider mb-1.5">
+                          USD Deposit Instructions & Memo Requirement
+                        </label>
+                        <textarea
+                          rows={4}
+                          value={bmlUsdForm.depositInstruction || ''}
+                          onChange={(e) => setBmlUsdForm({ ...bmlUsdForm, depositInstruction: e.target.value })}
+                          placeholder="Instructions shown directly on the user's USD card..."
+                          className="w-full bg-neutral-950 border border-neutral-800 focus:border-emerald-500/60 rounded-xl p-3 text-xs text-neutral-200 focus:outline-none transition-colors leading-relaxed resize-none"
+                        />
+                        <span className="text-[10px] text-neutral-500 block mt-1">
+                          Instruct users to quote their order ID or username in transfer remarks for instant escrow verification.
+                        </span>
+                      </div>
+
+                      {/* Submit button */}
+                      <div className="pt-2">
+                        <button
+                          type="submit"
+                          disabled={bmlUsdSaving}
+                          className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-neutral-950 font-bold px-5 py-3 rounded-xl text-xs tracking-wider uppercase transition-all shadow-lg shadow-emerald-950/40 cursor-pointer disabled:opacity-50"
+                        >
+                          {bmlUsdSaving ? (
+                            <>
+                              <RefreshCw className="h-4 w-4 animate-spin text-neutral-950" />
+                              <span>Saving Changes to Firestore...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Save className="h-4 w-4 text-neutral-950" />
+                              <span>Save BML USD Configuration</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                    </form>
+
+                    {/* Right: Live Preview */}
+                    <div className="lg:col-span-6 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                            Live User Profile Preview
+                          </h4>
+                          <span className="text-[11px] text-neutral-500 block">
+                            Real-time visualization of how the USD card appears to clients:
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-mono text-neutral-400 bg-neutral-900 border border-neutral-800 px-2 py-0.5 rounded-full">
+                          Auto-Updated
+                        </span>
+                      </div>
+
+                      {/* Preview Container */}
+                      <div className="p-4 bg-neutral-950/80 border border-neutral-800 rounded-2xl">
+                        <div 
+                          id="admin-bml-usd-preview-card" 
+                          className="bg-neutral-900/90 border border-emerald-500/30 rounded-2xl p-4 sm:p-5 shadow-xl relative overflow-hidden transition-all flex flex-col justify-between"
+                        >
+                          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-xl pointer-events-none" />
+                          
+                          <div className="relative z-10">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                              <div className="flex items-start sm:items-center gap-3">
+                                <div className="h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-emerald-400 shrink-0">
+                                  <Landmark className="h-5 w-5" />
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 px-2 py-0.5 rounded-md">
+                                      Company {bmlUsdForm.bankName || 'BML'} (USD)
+                                    </span>
+                                    <span className="text-xs text-neutral-400">Direct {bmlUsdForm.currency || 'USD'} Settlement</span>
+                                    {bmlUsdForm.isActive === false ? (
+                                      <span className="text-[10px] font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/25 px-2 py-0.5 rounded-md">
+                                        Maintenance Mode
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 px-2 py-0.5 rounded-md">
+                                        Active Deposit Rail
+                                      </span>
+                                    )}
+                                  </div>
+                                  
+                                  <div className="flex items-center gap-3 mt-2 flex-wrap">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs text-neutral-400">{bmlUsdForm.bankName || 'BML'} ({bmlUsdForm.currency || 'USD'}):</span>
+                                      <span className="text-sm sm:text-base font-bold text-white font-mono tracking-wide bg-neutral-950/90 px-2.5 py-1 rounded-lg border border-neutral-800">
+                                        {bmlUsdForm.accountNumber || '—'}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs text-neutral-400">Name:</span>
+                                      <span className="text-xs sm:text-sm font-semibold text-emerald-300 font-mono bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-1 rounded-lg">
+                                        {bmlUsdForm.accountName || '—'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={handleCopyPreviewUsdAccount}
+                                  className="inline-flex items-center gap-1.5 bg-emerald-400/15 hover:bg-emerald-400/25 text-emerald-300 border border-emerald-400/35 px-3 py-2 rounded-xl text-xs font-semibold tracking-wider transition-all cursor-pointer shadow-sm hover:scale-[1.02]"
+                                >
+                                  {bmlUsdCopiedPreview ? (
+                                    <>
+                                      <Check className="h-3.5 w-3.5 text-emerald-400" />
+                                      <span className="text-emerald-400 text-xs">Copied!</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Copy className="h-3.5 w-3.5 text-emerald-400" />
+                                      <span className="text-xs">Copy Acct</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="mt-3.5 pt-3 border-t border-neutral-800/80 flex items-start gap-2.5">
+                              <span className="text-xs text-emerald-400 shrink-0 mt-0.5">ℹ</span>
+                              <p className="text-[11px] text-neutral-300 leading-relaxed">
+                                <strong className="text-emerald-300">Deposit Instruction:</strong> {bmlUsdForm.depositInstruction || DEFAULT_COMPANY_BML_USD_CONFIG.depositInstruction}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="p-4 bg-neutral-900/40 border border-neutral-800/80 rounded-xl space-y-2 text-xs text-neutral-400">
+                        <span className="font-semibold text-neutral-300 block">Integration Note</span>
+                        <p className="leading-relaxed text-[11px]">
+                          When you click <strong className="text-white font-medium">Save BML USD Configuration</strong>, the Firestore document at path <code className="text-emerald-400 font-mono text-[10px] bg-neutral-950 px-1 py-0.5 rounded border border-neutral-800">company_accounts/bml_usd</code> is updated immediately. Any customer viewing their profile sees the updated USD settlement details in real time.
+                        </p>
+                      </div>
+
+                    </div>
+
+                  </div>
+
+                </div>
+              )}
 
             </div>
           )}
